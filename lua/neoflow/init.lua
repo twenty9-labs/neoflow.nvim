@@ -55,6 +55,11 @@ function M.open_worktree_window()
 	end, worktrees)))
 	local width = math.min(60, math.max(30, max_name_len + max_branch_len + 15)) -- Extra space for "(current)"
 	local height = math.min(#worktrees + 2, 15) -- Add padding for title and spacing
+	-- Ensure border is valid for title
+	local border = config.border
+	if type(border) ~= "string" and type(border) ~= "table" then
+		border = "single" -- Fallback to default if invalid
+	end
 	local opts = {
 		relative = "editor",
 		width = width,
@@ -62,7 +67,7 @@ function M.open_worktree_window()
 		col = math.floor((vim.o.columns - width) / 2),
 		row = math.floor((vim.o.lines - height) / 2),
 		style = "minimal",
-		border = config.border,
+		border = border,
 		title = " NeoFlow Git Worktrees ",
 		title_pos = "center",
 	}
