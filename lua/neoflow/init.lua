@@ -9,6 +9,9 @@ local fn = vim.fn
 ---@field path string Full path to the worktree
 ---@field branch string Branch associated with the worktree
 
+-- Define module table upfront
+local M = {}
+
 -- Get list of worktrees from the current Git repo
 ---@return Worktree[]
 local function get_worktrees()
@@ -36,7 +39,7 @@ local function get_worktrees()
 end
 
 -- Open a floating window with worktree list
-local function open_worktree_window()
+function M.open_worktree_window()
 	local worktrees = get_worktrees()
 	if #worktrees == 0 then
 		vim.notify("No worktrees found", vim.log.levels.WARN)
@@ -57,7 +60,7 @@ local function open_worktree_window()
 		border = config.border,
 	}
 
-	local win = api.nvim_open_win(buf, true, opts)
+	api.nvim_open_win(buf, true, opts) -- Removed `local win =`
 
 	-- Populate buffer with worktree info
 	local lines = {}
@@ -65,7 +68,7 @@ local function open_worktree_window()
 		table.insert(lines, string.format("%d: %s (%s)", i, wt.name, wt.branch))
 	end
 	api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-	api.nvim_buf_set_option(buf, "modifiable", false)
+	api.nvim_set_option_value("modifiable", false, { buf = buf })
 
 	-- Keymap to select worktree
 	api.nvim_buf_set_keymap(
@@ -115,24 +118,16 @@ end
 
 -- Public setup function
 ---@param user_config? table Configuration table to override defaults
-local function setup(user_config)
+function M.setup(user_config)
 	config.setup(user_config or {})
+	-- Register keymap and command after setup
+	api.nvim_set_keymap(
+		"n",
+		config.keymap_open,
+		":lua require('neoflow').open_worktree_window()<CR>",
+		{ noremap = true, silent = true }
+	)
+	api.nvim_create_user_command("GitWorktree", M.open_worktree_window, { desc = "List and switch Git worktrees" })
 end
-
--- Expose module functions
-local M = {
-	setup = setup,
-	open_worktree_window = open_worktree_window,
-	select_worktree = M.select_worktree,
-}
-
--- Register keymap and command
-api.nvim_set_keymap(
-	"n",
-	config.keymap_open,
-	":lua require('neoflow').open_worktree_window()<CR>",
-	{ noremap = true, silent = true }
-)
-api.nvim_create_user_command("GitWorktree", open_worktree_window, { desc = "List and switch Git worktrees" })
 
 return M
