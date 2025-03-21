@@ -11,7 +11,7 @@ to switch between them while preserving the current file (if it exists in the
 target worktree).
 
 ==============================================================================
-INSTALLATION                                    *git-worktree-install*
+INSTALLATION                                    *neoflow-install*
 
 Use your preferred plugin manager. For example, with `lazy.nvim`:
 
