@@ -1,7 +1,18 @@
 -- Main module for neoflow
-local config = require("neoflow.config")
+local config_module = require("neoflow.config")
 local api = vim.api
 local fn = vim.fn
+
+-- Default config in case config.lua fails
+local config = {
+	border = "single",
+	width = 0.8,
+	height = 0.6,
+}
+-- Merge with config_module.config if it exists
+if config_module and config_module.config then
+	config = vim.tbl_deep_extend("force", config, config_module.config)
+end
 
 -- Type annotations
 ---@class Worktree
@@ -59,9 +70,9 @@ function M.open_worktree_window()
 		return #wt.branch
 	end, worktrees)))
 	local min_width = max_name_len + max_branch_len + 20 -- Minimum width for content
-	local width = math.max(min_width, math.floor(vim.o.columns * config.width))
+	local width = math.max(min_width, math.floor(vim.o.columns * (config.width or 0.8)))
 	local min_height = #worktrees + 3 -- Minimum height for content plus padding
-	local height = math.max(min_height, math.floor(vim.o.lines * config.height))
+	local height = math.max(min_height, math.floor(vim.o.lines * (config.height or 0.6)))
 	-- Ensure border is valid for title
 	local border = config.border
 	if type(border) ~= "string" and type(border) ~= "table" then
@@ -163,7 +174,11 @@ end
 -- Public setup function
 ---@param user_config? table Configuration table to override defaults
 function M.setup(user_config)
-	config.setup(user_config or {})
+	if config_module and config_module.setup then
+		config_module.setup(user_config)
+		-- Update local config with the merged result
+		config = vim.tbl_deep_extend("force", config, config_module.config)
+	end
 	api.nvim_create_user_command("NeoFlow", M.open_worktree_window, { desc = "List and switch Git worktrees" })
 end
 
