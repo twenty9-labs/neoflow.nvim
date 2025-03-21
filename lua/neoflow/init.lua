@@ -23,12 +23,15 @@ local function get_worktrees()
 		return worktrees
 	end
 
+	local current_path = fn.systemlist("git rev-parse --show-toplevel")[1] or fn.getcwd()
+
 	for _, line in ipairs(wt_lines) do
 		-- Parse lines like: "/path/to/worktree  commit  [branch]"
 		local path, branch = line:match("^(%S+)%s+.-%[(.-)%]")
 		if path and branch then
 			local name = path:match("[^/]+$") or path -- Extract last directory name
-			table.insert(worktrees, { name = name, path = path, branch = branch })
+			local is_current = (path == current_path)
+			table.insert(worktrees, { name = name, path = path, branch = branch, is_current = is_current })
 		end
 	end
 	return worktrees
@@ -44,8 +47,14 @@ function M.open_worktree_window()
 
 	-- Create buffer and window
 	local buf = api.nvim_create_buf(false, true)
-	local width = math.min(50, math.max(30, #worktrees[1].name + #worktrees[1].branch + 10))
-	local height = math.min(#worktrees, 10)
+	local max_name_len = math.max(unpack(vim.tbl_map(function(wt)
+		return #wt.name
+	end, worktrees)))
+	local max_branch_len = math.max(unpack(vim.tbl_map(function(wt)
+		return #wt.branch
+	end, worktrees)))
+	local width = math.min(60, math.max(30, max_name_len + max_branch_len + 15)) -- Extra space for "(current)"
+	local height = math.min(#worktrees + 2, 15) -- Add padding for title and spacing
 	local opts = {
 		relative = "editor",
 		width = width,
@@ -54,17 +63,38 @@ function M.open_worktree_window()
 		row = math.floor((vim.o.lines - height) / 2),
 		style = "minimal",
 		border = config.border,
+		title = " NeoFlow Git Worktrees ",
+		title_pos = "center",
 	}
 
 	api.nvim_open_win(buf, true, opts)
 
 	-- Populate buffer with worktree info
-	local lines = {}
+	local lines = { "" } -- Top padding
 	for i, wt in ipairs(worktrees) do
-		table.insert(lines, string.format("%d: %s (%s)", i, wt.name, wt.branch))
+		-- Pad the name and branch for alignment
+		local name = wt.name .. string.rep(" ", max_name_len - #wt.name + 2)
+		local branch = "(" .. wt.branch .. ")"
+		local label = wt.is_current and " (current)" or ""
+		table.insert(lines, string.format(" %d: %s%s%s", i, name, branch, label))
 	end
 	api.nvim_buf_set_lines(buf, 0, -1, false, lines)
 	api.nvim_set_option_value("modifiable", false, { buf = buf })
+
+	-- Add syntax highlighting
+	api.nvim_buf_add_highlight(buf, -1, "Title", 0, 0, -1) -- Highlight the title line
+	for i = 1, #worktrees do
+		local line_start = 1
+		api.nvim_buf_add_highlight(buf, -1, "Number", i, line_start, line_start + 2) -- Highlight the number
+		line_start = line_start + 3
+		api.nvim_buf_add_highlight(buf, -1, "Directory", i, line_start, line_start + max_name_len) -- Highlight the name
+		line_start = line_start + max_name_len + 2
+		local branch_end = line_start + #worktrees[i].branch + 2
+		api.nvim_buf_add_highlight(buf, -1, "Comment", i, line_start, branch_end) -- Highlight the branch
+		if worktrees[i].is_current then
+			api.nvim_buf_add_highlight(buf, -1, "Special", i, branch_end, -1) -- Highlight "(current)"
+		end
+	end
 
 	-- Set buffer-local keymap for selecting with Enter
 	api.nvim_buf_set_keymap(
@@ -81,7 +111,7 @@ end
 -- Switch to selected worktree and handle current file
 function M.select_worktree()
 	local line = api.nvim_get_current_line()
-	local wt_index = tonumber(line:match("^(%d+):"))
+	local wt_index = tonumber(line:match("^%s*(%d+):"))
 	if not wt_index then
 		return
 	end
