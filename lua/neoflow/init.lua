@@ -1,4 +1,4 @@
--- Main module for neoflow.nvim
+-- Main module for neoflow
 local config = require("neoflow.config")
 local api = vim.api
 local fn = vim.fn
@@ -60,7 +60,7 @@ function M.open_worktree_window()
 		border = config.border,
 	}
 
-	api.nvim_open_win(buf, true, opts) -- Removed `local win =`
+	api.nvim_open_win(buf, true, opts)
 
 	-- Populate buffer with worktree info
 	local lines = {}
@@ -120,14 +120,21 @@ end
 ---@param user_config? table Configuration table to override defaults
 function M.setup(user_config)
 	config.setup(user_config or {})
+	-- Validate keymap_open before setting
+	local keymap_open = config.keymap_open
+	if type(keymap_open) ~= "string" or keymap_open == "" then
+		vim.notify("neoflow: Invalid keymap_open, using default '<leader>gw'", vim.log.levels.WARN)
+		keymap_open = "<leader>gw"
+	end
+
 	-- Register keymap and command after setup
 	api.nvim_set_keymap(
 		"n",
-		config.keymap_open,
+		keymap_open,
 		":lua require('neoflow').open_worktree_window()<CR>",
 		{ noremap = true, silent = true }
 	)
-	api.nvim_create_user_command("GitWorktree", M.open_worktree_window, { desc = "List and switch Git worktrees" })
+	api.nvim_create_user_command("NeoFlow", M.open_worktree_window, { desc = "List and switch Git worktrees" })
 end
 
 return M
