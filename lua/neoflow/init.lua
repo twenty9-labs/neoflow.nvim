@@ -16,24 +16,20 @@ local M = {}
 ---@return Worktree[]
 local function get_worktrees()
 	local worktrees = {}
-	local git_root = fn.systemlist("git rev-parse --git-dir")[1]
-	if not git_root or vim.v.shell_error ~= 0 then
-		vim.notify("Not in a Git repository", vim.log.levels.ERROR)
+	-- Use `git worktree list` for accurate detection
+	local wt_lines = fn.systemlist("git worktree list")
+	if vim.v.shell_error ~= 0 or #wt_lines == 0 then
+		vim.notify("No worktrees found or not in a Git repository", vim.log.levels.WARN)
 		return worktrees
 	end
 
-	-- For bare repos, worktrees might be in the root; for non-bare, in .git/worktrees
-	local wt_dir = git_root:match("%.git$") and git_root .. "/worktrees" or git_root .. "/../worktrees"
-	if fn.isdirectory(wt_dir) == 0 then
-		-- Check for bare repo worktrees in the root
-		wt_dir = git_root:match("%.git$") and fn.getcwd() or git_root .. "/.."
-	end
-
-	local dirs = fn.readdir(wt_dir, [[v:val !~ '^\.' && isdirectory(v:val)]])
-	for _, dir in ipairs(dirs) do
-		local path = wt_dir .. "/" .. dir
-		local branch = fn.systemlist("git -C " .. path .. " rev-parse --abbrev-ref HEAD")[1] or "unknown"
-		table.insert(worktrees, { name = dir, path = path, branch = branch })
+	for _, line in ipairs(wt_lines) do
+		-- Parse lines like: "/path/to/worktree  commit  [branch]"
+		local path, branch = line:match("^(%S+)%s+.-%[(.-)%]")
+		if path and branch then
+			local name = path:match("[^/]+$") or path -- Extract last directory name
+			table.insert(worktrees, { name = name, path = path, branch = branch })
+		end
 	end
 	return worktrees
 end
@@ -69,16 +65,6 @@ function M.open_worktree_window()
 	end
 	api.nvim_buf_set_lines(buf, 0, -1, false, lines)
 	api.nvim_set_option_value("modifiable", false, { buf = buf })
-
-	-- Keymap to select worktree
-	api.nvim_buf_set_keymap(
-		buf,
-		"n",
-		config.keymap_select,
-		":lua require('neoflow').select_worktree()<CR>",
-		{ noremap = true, silent = true }
-	)
-	api.nvim_buf_set_keymap(buf, "n", "q", ":q<CR>", { noremap = true, silent = true })
 end
 
 -- Switch to selected worktree and handle current file
@@ -120,20 +106,6 @@ end
 ---@param user_config? table Configuration table to override defaults
 function M.setup(user_config)
 	config.setup(user_config or {})
-	-- Validate keymap_open before setting
-	local keymap_open = config.keymap_open
-	if type(keymap_open) ~= "string" or keymap_open == "" then
-		vim.notify("neoflow: Invalid keymap_open, using default '<leader>gw'", vim.log.levels.WARN)
-		keymap_open = "<leader>gw"
-	end
-
-	-- Register keymap and command after setup
-	api.nvim_set_keymap(
-		"n",
-		keymap_open,
-		":lua require('neoflow').open_worktree_window()<CR>",
-		{ noremap = true, silent = true }
-	)
 	api.nvim_create_user_command("NeoFlow", M.open_worktree_window, { desc = "List and switch Git worktrees" })
 end
 
