@@ -5,10 +5,10 @@ License: MIT
 ==============================================================================
 INTRODUCTION                                    *neoflow*
 
-`neoflow.nvim` is a Neovim plugin to manage Git worktrees. It provides a
-floating window to list all worktrees in the current repository, allowing you
-to switch between them while preserving the current file (if it exists in the
-target worktree).
+`neoflow` is a Neovim plugin to manage Git worktrees. It provides a floating
+window to list all worktrees in the current repository, allowing you to switch
+between them while preserving the current file (if it exists in the target
+worktree).
 
 ==============================================================================
 INSTALLATION                                    *neoflow-install*
@@ -17,5 +17,3 @@ Use your preferred plugin manager. For example, with `lazy.nvim`:
 
 ```lua
 { "twenty9-labs/neoflow.nvim", config = function() require("neoflow").setup() end }
-
-inspiration: https://www.youtube.com/watch?v=2uEqYw-N8uE

@@ -8,6 +8,7 @@ local fn = vim.fn
 ---@field name string Name of the worktree (directory name)
 ---@field path string Full path to the worktree
 ---@field branch string Branch associated with the worktree
+---@field is_current boolean Whether this is the current worktree
 
 -- Define module table upfront
 local M = {}
@@ -30,8 +31,12 @@ local function get_worktrees()
 		local path, branch = line:match("^(%S+)%s+.-%[(.-)%]")
 		if path and branch then
 			local name = path:match("[^/]+$") or path -- Extract last directory name
-			local is_current = (path == current_path)
-			table.insert(worktrees, { name = name, path = path, branch = branch, is_current = is_current })
+			table.insert(worktrees, {
+				name = name,
+				path = path,
+				branch = branch,
+				is_current = (path == current_path), -- Always set, defaults to false if no match
+			})
 		end
 	end
 	return worktrees
@@ -53,8 +58,10 @@ function M.open_worktree_window()
 	local max_branch_len = math.max(unpack(vim.tbl_map(function(wt)
 		return #wt.branch
 	end, worktrees)))
-	local width = math.min(60, math.max(30, max_name_len + max_branch_len + 15)) -- Extra space for "(current)"
-	local height = math.min(#worktrees + 2, 15) -- Add padding for title and spacing
+	local min_width = max_name_len + max_branch_len + 20 -- Minimum width for content
+	local width = math.max(min_width, math.floor(vim.o.columns * config.width))
+	local min_height = #worktrees + 3 -- Minimum height for content plus padding
+	local height = math.max(min_height, math.floor(vim.o.lines * config.height))
 	-- Ensure border is valid for title
 	local border = config.border
 	if type(border) ~= "string" and type(border) ~= "table" then
@@ -68,7 +75,7 @@ function M.open_worktree_window()
 		row = math.floor((vim.o.lines - height) / 2),
 		style = "minimal",
 		border = border,
-		title = " NeoFlow Git Worktrees ",
+		title = " NeoFlow Worktrees ",
 		title_pos = "center",
 	}
 
@@ -133,19 +140,24 @@ function M.select_worktree()
 	-- Get current file relative to current worktree
 	local current_file = fn.expand("%:p")
 	local current_wt_root = fn.systemlist("git rev-parse --show-toplevel")[1]
-	local relative_file = current_file:gsub("^" .. current_wt_root .. "/", "")
+	local had_file = current_file ~= "" and current_wt_root -- Check if there was a file open
 
 	-- Switch to new worktree
 	fn.chdir(selected.path)
 
 	-- Try to open the same file in the new worktree
-	local new_file = selected.path .. "/" .. relative_file
-	if fn.filereadable(new_file) == 1 then
-		api.nvim_command("edit " .. new_file)
-	else
-		vim.notify("File not found in " .. selected.name, vim.log.levels.WARN, { title = "neoflow" })
-		api.nvim_command("Oil " .. selected.path) -- Use oil.nvim to show root
+	if had_file then
+		local relative_file = current_file:gsub("^" .. current_wt_root .. "/", "")
+		local new_file = selected.path .. "/" .. relative_file
+		if fn.filereadable(new_file) == 1 then
+			api.nvim_command("edit " .. new_file)
+			vim.notify("Switched worktree to " .. selected.name, vim.log.levels.INFO)
+			return
+		end
 	end
+	-- If no file was open or file doesn't exist, just notify the switch
+	vim.notify("Switched worktree to " .. selected.name, vim.log.levels.INFO)
+	api.nvim_command("Oil " .. selected.path) -- Use oil.nvim to show root
 end
 
 -- Public setup function
