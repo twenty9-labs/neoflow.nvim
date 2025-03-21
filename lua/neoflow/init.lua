@@ -65,6 +65,17 @@ function M.open_worktree_window()
 	end
 	api.nvim_buf_set_lines(buf, 0, -1, false, lines)
 	api.nvim_set_option_value("modifiable", false, { buf = buf })
+
+	-- Set buffer-local keymap for selecting with Enter
+	api.nvim_buf_set_keymap(
+		buf,
+		"n",
+		"<CR>",
+		":lua require('neoflow').select_worktree()<CR>",
+		{ noremap = true, silent = true }
+	)
+	-- Allow closing with 'q'
+	api.nvim_buf_set_keymap(buf, "n", "q", ":q<CR>", { noremap = true, silent = true })
 end
 
 -- Switch to selected worktree and handle current file
